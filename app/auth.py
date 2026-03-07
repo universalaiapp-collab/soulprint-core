@@ -3,7 +3,7 @@ import logging
 from fastapi import Header, HTTPException
 from sqlalchemy import text
 from app.db import SessionLocal
-from app.core.rate_limit import check_rate_limit
+from app.core.rate_limit import check_org_rate_limit
 
 logger = logging.getLogger()
 
@@ -35,6 +35,6 @@ def get_current_org(x_api_key: str = Header(None)):
     org_id = result[0]
     rate_limit = result[1]
 
-    check_rate_limit(org_id, rate_limit)
+    check_org_rate_limit(org_id, rate_limit)
 
     return org_id

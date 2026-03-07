@@ -6,9 +6,16 @@ import secrets
 from datetime import datetime
 from sqlalchemy import text
 import logging
+from app.routes.analytics import router as analytics_router
+from app.routes.ledger import router as ledger_router
 
+# Database
 from app.db import SessionLocal
+
+# Auth
 from app.auth import get_current_org
+
+# Core utilities
 from app.core.exception_handlers import rate_limit_handler
 from app.core.logger import setup_logger
 from app.core.error_handler import (
@@ -16,27 +23,43 @@ from app.core.error_handler import (
     unhandled_exception_handler
 )
 
-# 🔥 Import agents router
+# Routers
 from app.api import agents
+from app.routes.escalation import router as escalation_router
+
 
 # --------------------------------
-# App Initialization
+# Create FastAPI App
 # --------------------------------
 
 app = FastAPI()
 
-# Register agents router
-app.include_router(agents.router)
 
-# Setup structured JSON logging
+# --------------------------------
+# Setup Logging
+# --------------------------------
+
 setup_logger()
+logger = logging.getLogger()
 
-# Register error handlers
+
+# --------------------------------
+# Register Routers
+# --------------------------------
+
+app.include_router(agents.router)
+app.include_router(escalation_router)
+app.include_router(analytics_router)
+app.include_router(ledger_router)
+
+# --------------------------------
+# Register Error Handlers
+# --------------------------------
+
 app.add_exception_handler(429, rate_limit_handler)
 app.add_exception_handler(HTTPException, global_http_exception_handler)
 app.add_exception_handler(Exception, unhandled_exception_handler)
 
-logger = logging.getLogger()
 
 # --------------------------------
 # Request Model
@@ -45,6 +68,7 @@ logger = logging.getLogger()
 class OrgCreateRequest(BaseModel):
     name: str
     tier: str
+
 
 # --------------------------------
 # Create Organization (Public)
@@ -108,6 +132,7 @@ def create_org(request: OrgCreateRequest):
         "api_key": raw_api_key
     }
 
+
 # --------------------------------
 # Protected Route
 # --------------------------------
@@ -128,6 +153,7 @@ def protected_route(org_id: str = Depends(get_current_org)):
         "message": "Access granted",
         "org_id": org_id
     }
+
 
 # --------------------------------
 # Health Check

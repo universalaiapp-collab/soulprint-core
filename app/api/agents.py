@@ -10,6 +10,13 @@ from app.core.crypto import generate_ed25519_keypair
 from app.core.agent_validator import validate_agent
 from app.core.agent_auth import verify_agent_request
 
+from app.services.firewall import check_firewall
+from app.services.escalation_engine import should_escalate
+from app.services.fingerprint import canonical_fingerprint
+from app.models.action_memory import ActionMemory
+from app.core.rate_limit import check_org_rate_limit
+from sqlalchemy import text
+
 router = APIRouter()
 
 
@@ -47,7 +54,7 @@ def create_agent(org_id: str, name: str):
     return {
         "agent_id": agent_id,
         "public_key": keys["public_key"],
-        "private_key": keys["private_key"]  # Returned ONCE
+        "private_key": keys["private_key"]
     }
 
 
@@ -107,12 +114,11 @@ def revoke_agent(agent_id: str):
 def test_secure(agent_id: str):
 
     validate_agent(agent_id)
-
     return {"message": "Agent authorized"}
 
 
 # ============================================================
-# SECURE ACTION (HASH CHAIN + IDEMPOTENCY)
+# SECURE ACTION (FIREWALL + HASH CHAIN)
 # ============================================================
 
 @router.post("/agents/secure-action")
@@ -122,19 +128,80 @@ async def secure_action(
 ):
 
     payload = await request.json()
-
     idempotency_key = request.headers.get("X-Idempotency-Key")
 
     if not idempotency_key:
         raise HTTPException(status_code=400, detail="Missing Idempotency Key")
 
-    request_hash = hashlib.sha256(
-        json.dumps(payload, sort_keys=True).encode()
-    ).hexdigest()
-
     db = SessionLocal()
 
-    # Check duplicate request
+    # --------------------------------------------------------
+    # Resolve org_id
+    # --------------------------------------------------------
+    org_row = db.execute(
+        text("SELECT org_id FROM agents WHERE id = :a"),
+        {"a": agent_id}
+    ).fetchone()
+
+    if not org_row:
+        db.close()
+        raise HTTPException(status_code=404, detail="Agent not found")
+
+    org_id = org_row[0]
+
+    # --------------------------------------------------------
+    # RATE LIMIT PER ORG  ✅ FIXED LOCATION
+    # --------------------------------------------------------
+    org = db.execute(
+        text("SELECT rate_limit_per_sec FROM organizations WHERE id=:id"),
+        {"id": org_id}
+    ).fetchone()
+
+    limit = org[0] if org else 5
+
+    if not check_org_rate_limit(org_id, limit):
+        db.close()
+        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+
+    # --------------------------------------------------------
+    # FIREWALL CHECK
+    # --------------------------------------------------------
+    decision = check_firewall(org_id, agent_id, payload)
+
+    if decision != "ALLOW":
+        db.close()
+        return {"status": decision}
+
+    # --------------------------------------------------------
+    # ESCALATION CHECK
+    # --------------------------------------------------------
+    if should_escalate(payload):
+
+        fingerprint = canonical_fingerprint(payload)
+
+        db.execute(
+            text("""
+                INSERT INTO escalation_queue
+                (org_id, agent_id, payload, action_fingerprint, status, created_at)
+                VALUES (:o, :a, :p, :f, 'pending', :c)
+            """),
+            {
+                "o": org_id,
+                "a": agent_id,
+                "p": json.dumps(payload),
+                "f": fingerprint,
+                "c": datetime.utcnow()
+            }
+        )
+
+        db.commit()
+        db.close()
+
+        return {"status": "CHALLENGE_HUMAN"}
+
+    # --------------------------------------------------------
+    # IDEMPOTENCY CHECK (Ledger Level)
+    # --------------------------------------------------------
     existing = db.execute(
         text("""
             SELECT id FROM decision_ledger
@@ -148,7 +215,13 @@ async def secure_action(
         db.close()
         return {"message": "Duplicate request ignored"}
 
-    # Get previous hash in chain
+    # --------------------------------------------------------
+    # HASH CHAIN
+    # --------------------------------------------------------
+    request_hash = hashlib.sha256(
+        json.dumps(payload, sort_keys=True).encode()
+    ).hexdigest()
+
     last = db.execute(
         text("""
             SELECT response_hash
@@ -162,108 +235,61 @@ async def secure_action(
 
     previous_hash = last[0] if last else ""
 
-    # Simulated execution logic
     response = {"status": "executed"}
 
     response_hash = hashlib.sha256(
         json.dumps(response, sort_keys=True).encode()
     ).hexdigest()
 
-    # Create chain hash
-    chain_hash = hashlib.sha256(
-        (previous_hash + request_hash + response_hash).encode()
-    ).hexdigest()
+    decision_hash = hashlib.sha256(
+    (previous_hash + request_hash + response_hash).encode()
+     ).hexdigest()
 
-    # Insert ledger entry
     db.execute(
-        text("""
-            INSERT INTO decision_ledger
-            (agent_id, idempotency_key, request_hash, response_hash, previous_hash)
-            VALUES (:a, :k, :rq, :rs, :ph)
-        """),
-        {
-            "a": agent_id,
-            "k": idempotency_key,
-            "rq": request_hash,
-            "rs": chain_hash,
-            "ph": previous_hash
-        }
+    text("""
+        INSERT INTO decision_ledger
+        (agent_id, idempotency_key, request_hash, response_hash, previous_hash, decision_hash)
+        VALUES (:a, :k, :rq, :rs, :ph, :dh)
+    """),
+    {
+        "a": agent_id,
+        "k": idempotency_key,
+        "rq": request_hash,
+        "rs": response_hash,
+        "ph": previous_hash,
+        "dh": decision_hash
+    }
     )
 
-    # Update agent last_hash
     db.execute(
-        text("""
-            UPDATE agents
-            SET last_hash = :h
-            WHERE id = :a
-        """),
-        {"h": chain_hash, "a": agent_id}
+    text("""
+        UPDATE agents
+        SET last_hash = :h
+        WHERE id = :a
+    """),
+    {"h": decision_hash, "a": agent_id}
     )
+
+    # --------------------------------------------------------
+    # UPDATE FIREWALL MEMORY
+    # --------------------------------------------------------
+    fingerprint = canonical_fingerprint(payload)
+
+    memory = db.query(ActionMemory).filter(
+        ActionMemory.org_id == org_id,
+        ActionMemory.agent_id == agent_id,
+        ActionMemory.action_fingerprint == fingerprint
+    ).first()
+
+    if memory:
+        memory.completed = True
+        memory.in_progress = False
 
     db.commit()
     db.close()
 
     return {
-        "result": response,
-        "ledger_hash": chain_hash,
-        "timestamp": datetime.utcnow().isoformat()
+    "result": response,
+    "ledger_hash": decision_hash,
+    "timestamp": datetime.utcnow().isoformat()
     }
-
-
-# ============================================================
-# UPDATE SCOPE (VERSIONING)
-# ============================================================
-
-@router.post("/agents/update-scope")
-def update_scope(agent_id: str, scope: dict):
-
-    db = SessionLocal()
-
-    try:
-        db.execute(text("BEGIN"))
-
-        agent = db.execute(
-            text("SELECT scope_version FROM agents WHERE id = :id FOR UPDATE"),
-            {"id": agent_id}
-        ).fetchone()
-
-        if not agent:
-            raise HTTPException(status_code=404, detail="Agent not found")
-
-        new_version = agent[0] + 1
-
-        db.execute(
-            text("""
-                UPDATE agents
-                SET scope_version = :v
-                WHERE id = :id
-            """),
-            {"v": new_version, "id": agent_id}
-        )
-
-        db.execute(
-            text("""
-                INSERT INTO agent_scope_history
-                (agent_id, scope, scope_version)
-                VALUES (:id, :scope, :v)
-            """),
-            {
-                "id": agent_id,
-                "scope": json.dumps(scope),
-                "v": new_version
-            }
-        )
-
-        db.commit()
-
-        return {
-            "agent_id": agent_id,
-            "scope_version": new_version
-        }
-
-    except Exception:
-        db.rollback()
-        raise
-
-    finally:
-        db.close()

@@ -19,7 +19,8 @@ from nacl.exceptions import BadSignatureError
 def verify_ed25519_signature(public_key_b64: str, message: bytes, signature_b64: str):
     try:
         public_key = VerifyKey(base64.b64decode(public_key_b64))
-        signature = base64.b64decode(signature_b64)
+        padding = '=' * (-len(signature_b64) % 4)
+        signature = base64.b64decode(signature_b64 + padding)
 
         public_key.verify(message, signature)
         return True

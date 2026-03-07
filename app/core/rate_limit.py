@@ -1,18 +1,32 @@
-import time
-from fastapi import HTTPException
-from app.core.redis_client import redis_client
+import redis
+import os
 
-def check_rate_limit(org_id: str, limit_per_sec: int):
-    current_second = int(time.time())
-    key = f"ratelimit:{org_id}:{current_second}"
+REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
 
-    request_count = redis_client.incr(key)
+redis_client = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=REDIS_DB,
+    decode_responses=True,
+    socket_connect_timeout=2,
+    socket_timeout=2,
+    retry_on_timeout=True,
+)
 
-    if request_count == 1:
-        redis_client.expire(key, 2)
+def check_org_rate_limit(org_id: str, limit: int = 100):
 
-    if request_count > limit_per_sec:
-        raise HTTPException(
-            status_code=429,
-            detail="RATE_LIMIT_EXCEEDED"
-        )
+    key = f"org_rate:{org_id}"
+
+    try:
+        count = redis_client.incr(key)
+
+        if count == 1:
+            redis_client.expire(key, 60)
+
+        return count <= limit
+
+    except redis.exceptions.RedisError:
+        # Fail-open policy (production safe)
+        return True
