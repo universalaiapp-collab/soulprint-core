@@ -60,18 +60,37 @@ def quickstart():
 
     # agent
     db.execute(
-        text("""
-        INSERT INTO agents
-        (id, org_id, public_key, scope_version, agent_status, created_at)
-        VALUES (:id, :org_id, :public_key, 1, 'active', :created)
-        """),
-        {
-            "id": agent_id,
-            "org_id": org_id,
-            "public_key": public_key,
-            "created": now
-        }
+    text("""
+    INSERT INTO agents
+    (
+        id,
+        org_id,
+        public_key,
+        scope_version,
+        agent_status,
+        expiry_at,
+        last_hash,
+        created_at
     )
+    VALUES
+    (
+        :id,
+        :org_id,
+        :public_key,
+        1,
+        'active',
+        NULL,
+        '',
+        :created
+    )
+    """),
+    {
+        "id": agent_id,
+        "org_id": org_id,
+        "public_key": public_key,
+        "created": now
+    }
+       )
 
     db.commit()
     db.close()
