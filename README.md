@@ -82,7 +82,18 @@ Unsafe actions are blocked.
 
 High-risk actions can require manual approval.
 
-Example:
+Example execution flow:
+
+Agent request  
+↓  
+Soulprint firewall  
+↓  
+Escalation required  
+↓  
+Human approval  
+↓  
+Action executed
+
 
 ## Quickstart
 
