@@ -26,7 +26,7 @@ from app.api import agents
 from app.routes.escalation import router as escalation_router
 from app.routes.analytics import router as analytics_router
 from app.routes.ledger import router as ledger_router
-
+from app.routes.dev import router as dev_router
 
 # --------------------------------
 # Create FastAPI App
@@ -55,7 +55,7 @@ app.include_router(agents.router, prefix="/v1")
 app.include_router(escalation_router, prefix="/v1")
 app.include_router(analytics_router, prefix="/v1")
 app.include_router(ledger_router, prefix="/v1")
-
+app.include_router(dev_router)
 
 # --------------------------------
 # Register Error Handlers
