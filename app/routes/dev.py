@@ -67,26 +67,35 @@ def quickstart():
         db.execute(
             text("""
             INSERT INTO agents
-            (id, org_id, public_key, created_at)
-            VALUES (:id, :org_id, :public_key, :created)
-            """),
-            {
-                "id": agent_id,
-                "org_id": org_id,
-                "public_key": public_key,
-                "created": now
-            }
+            (
+            id,
+            org_id,
+            name,
+            public_key,
+            scope_version,
+            agent_status,
+            expiry_at,
+            last_hash,
+            created_at
         )
-
-        db.commit()
-
-        return {
-            "org_id": org_id,
-            "api_key": raw_api_key,
-            "agent_id": agent_id,
-            "private_key": private_key,
-            "base_url": "https://soulprint-core-production.up.railway.app"
-        }
-
-    finally:
-        db.close()
+            VALUES
+        (
+            :id,
+            :org_id,
+            :name,
+            :public_key,
+            1,
+            'active',
+            NULL,
+            '',
+            :created
+        )
+        """),
+    {
+        "id": agent_id,
+        "org_id": org_id,
+        "name": "quickstart-agent",
+        "public_key": public_key,
+        "created": now
+    }
+    )
