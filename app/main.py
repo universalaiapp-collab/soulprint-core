@@ -6,8 +6,6 @@ import secrets
 from datetime import datetime
 from sqlalchemy import text
 import logging
-from app.routes.analytics import router as analytics_router
-from app.routes.ledger import router as ledger_router
 
 # Database
 from app.db import SessionLocal
@@ -26,13 +24,19 @@ from app.core.error_handler import (
 # Routers
 from app.api import agents
 from app.routes.escalation import router as escalation_router
+from app.routes.analytics import router as analytics_router
+from app.routes.ledger import router as ledger_router
 
 
 # --------------------------------
 # Create FastAPI App
 # --------------------------------
 
-app = FastAPI()
+app = FastAPI(
+    title="Soulprint",
+    description="AI Execution Firewall for AI Agents",
+    version="1.0.0"
+)
 
 
 # --------------------------------
@@ -40,17 +44,18 @@ app = FastAPI()
 # --------------------------------
 
 setup_logger()
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 
 # --------------------------------
-# Register Routers
+# Register Routers (Versioned API)
 # --------------------------------
 
-app.include_router(agents.router)
-app.include_router(escalation_router)
-app.include_router(analytics_router)
-app.include_router(ledger_router)
+app.include_router(agents.router, prefix="/v1")
+app.include_router(escalation_router, prefix="/v1")
+app.include_router(analytics_router, prefix="/v1")
+app.include_router(ledger_router, prefix="/v1")
+
 
 # --------------------------------
 # Register Error Handlers
@@ -62,7 +67,7 @@ app.add_exception_handler(Exception, unhandled_exception_handler)
 
 
 # --------------------------------
-# Request Model
+# Request Models
 # --------------------------------
 
 class OrgCreateRequest(BaseModel):
@@ -74,7 +79,7 @@ class OrgCreateRequest(BaseModel):
 # Create Organization (Public)
 # --------------------------------
 
-@app.post("/org/create")
+@app.post("/v1/org/create")
 def create_org(request: OrgCreateRequest):
 
     db = SessionLocal()
@@ -122,7 +127,7 @@ def create_org(request: OrgCreateRequest):
         "org_created",
         extra={
             "org_id": org_id,
-            "path": "/org/create",
+            "path": "/v1/org/create",
             "status_code": 200
         }
     )
@@ -134,17 +139,17 @@ def create_org(request: OrgCreateRequest):
 
 
 # --------------------------------
-# Protected Route
+# Protected Test Route
 # --------------------------------
 
-@app.get("/protected")
+@app.get("/v1/protected")
 def protected_route(org_id: str = Depends(get_current_org)):
 
     logger.info(
         "protected_access",
         extra={
             "org_id": org_id,
-            "path": "/protected",
+            "path": "/v1/protected",
             "status_code": 200
         }
     )
