@@ -1,46 +1,85 @@
 # Soulprint
 
-Soulprint is an execution firewall for AI agents.
+**Soulprint is an execution firewall for AI agents.**
 
-It provides:
-- Multi-tenant API key management
-- Per-organization rate limiting
-- Key rotation + revocation
-- Structured audit logging
-- Production-safe error handling
+It gives **identity, authorization, and safety controls** to AI agents running in production systems.
 
-## Why?
+Human IAM systems manage **people**.
 
-Human IAM tools manage users.
-Soulprint governs machine execution.
+Soulprint governs **machines.**
 
-AI agents can:
-- Loop infinitely
-- Duplicate actions
-- Cause cost spikes
+---
 
-Soulprint prevents that.
+# The Problem
 
-## Current Features (Phase 0 Complete)
+AI agents are starting to perform real-world actions such as:
 
-- Organization creation
-- Secure API key hashing
-- Key rotation
-- Per-org Redis rate limiting
-- Structured JSON logs
+- sending emails
+- executing API calls
+- triggering payments
+- running workflows
+- modifying databases
 
-## Roadmap
+Without execution control, agents can cause serious failures:
 
-Phase 1:
-- Agent identity
-- ed25519 signatures
-- Decision ledger
+• infinite loops  
+• duplicate execution  
+• runaway automation  
+• dangerous operations  
+• massive API cost spikes  
 
-Phase 2:
-- Execution firewall
-- Loop prevention
-- Idempotency control
+Traditional IAM tools do not protect against these problems.
 
-Phase 3:
-- Spending governor
-- Budget enforcement
+---
+
+# The Solution
+
+Soulprint introduces a **governance layer for AI agents**.
+
+Every action executed by an agent passes through the **Soulprint Execution Firewall**.
+
+This provides:
+
+• agent identity verification  
+• execution authorization  
+• loop prevention  
+• duplicate protection  
+• human escalation  
+• tamper-proof decision logging  
+
+Soulprint ensures agents act **safely, deterministically, and auditable**.
+
+---
+
+# Core Capabilities
+
+## Agent Identity
+
+Every AI agent receives a cryptographic identity.
+
+Requests are signed using **ed25519 keys**, ensuring:
+
+- verified agent identity
+- tamper-proof requests
+- secure execution authorization
+
+---
+
+## Execution Firewall
+
+Before an action executes, Soulprint checks:
+
+- duplicate execution
+- retry limits
+- infinite loop behavior
+- policy violations
+
+Unsafe actions are blocked.
+
+---
+
+## Human Escalation
+
+High-risk actions can require manual approval.
+
+Example:
