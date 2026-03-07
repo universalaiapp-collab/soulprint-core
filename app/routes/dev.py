@@ -7,6 +7,7 @@ import base64
 
 from nacl.signing import SigningKey
 from sqlalchemy import text
+
 from app.db import SessionLocal
 
 router = APIRouter(prefix="/v1/dev", tags=["dev"])
@@ -33,12 +34,13 @@ def quickstart():
 
         now = datetime.utcnow()
 
-        # create org
+        # create organization
         db.execute(
             text("""
             INSERT INTO organizations
-            (id, name, tier, created_at)
-            VALUES (:id, :name, :tier, :created)
+            (id, name, tier, rate_limit_per_sec, monthly_action_limit, created_at)
+            VALUES
+            (:id, :name, :tier, 10, 10000, :created)
             """),
             {
                 "id": org_id,
@@ -48,12 +50,13 @@ def quickstart():
             }
         )
 
-        # api key
+        # create api key
         db.execute(
             text("""
             INSERT INTO org_api_keys
             (id, org_id, key_hash, is_active, created_at)
-            VALUES (:id, :org_id, :key_hash, true, :created)
+            VALUES
+            (:id, :org_id, :key_hash, true, :created)
             """),
             {
                 "id": str(uuid4()),
@@ -63,35 +66,52 @@ def quickstart():
             }
         )
 
-        # create agent
-  db.execute(
-    text("""
-    INSERT INTO agents
-    (
-        id,
-        org_id,
-        name,
-        public_key,
-        scope_version,
-        agent_status,
-        created_at
-    )
-    VALUES
-    (
-        :id,
-        :org_id,
-        :name,
-        :public_key,
-        1,
-        'active',
-        :created
-    )
-    """),
-    {
-        "id": agent_id,
-        "org_id": org_id,
-        "name": "quickstart-agent",
-        "public_key": public_key,
-        "created": now
-    }
-    )
+        # create agent (this matches your schema)
+        db.execute(
+            text("""
+            INSERT INTO agents
+            (
+                id,
+                org_id,
+                name,
+                public_key,
+                scope_version,
+                agent_status,
+                expiry_at,
+                last_hash,
+                created_at
+            )
+            VALUES
+            (
+                :id,
+                :org_id,
+                :name,
+                :public_key,
+                1,
+                'active',
+                NULL,
+                '',
+                :created
+            )
+            """),
+            {
+                "id": agent_id,
+                "org_id": org_id,
+                "name": "quickstart-agent",
+                "public_key": public_key,
+                "created": now
+            }
+        )
+
+        db.commit()
+
+        return {
+            "org_id": org_id,
+            "api_key": raw_api_key,
+            "agent_id": agent_id,
+            "private_key": private_key,
+            "base_url": "https://soulprint-core-production.up.railway.app"
+        }
+
+    finally:
+        db.close()
