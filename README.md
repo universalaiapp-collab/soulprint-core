@@ -83,3 +83,54 @@ Unsafe actions are blocked.
 High-risk actions can require manual approval.
 
 Example:
+
+## Quickstart
+
+Start using Soulprint in 3 steps.
+
+### 1. Create Organization
+
+POST /v1/org/create
+
+Example:
+
+curl -X POST https://soulprint-core-production.up.railway.app/v1/org/create \
+-H "Content-Type: application/json" \
+-d '{"name":"demo-org","tier":"dev"}'
+
+This returns:
+
+- org_id
+- api_key
+
+---
+
+### 2. Create Agent
+
+POST /v1/agents/create
+
+This generates:
+
+- agent_id
+- public key
+- private key
+
+---
+
+### 3. Execute Secure Action
+
+POST /v1/agents/secure-action
+
+Example payload:
+
+{
+  "action_type": "test",
+  "message": "hello"
+}
+
+Soulprint will:
+
+• verify agent identity  
+• check firewall rules  
+• record decision in ledger  
+• execute action safely
