@@ -1,5 +1,11 @@
 venv/
+node_modules/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .env
+.env.local
 dump.rdb
+dist/
+build/
