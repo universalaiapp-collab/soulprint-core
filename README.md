@@ -134,3 +134,15 @@ Soulprint will:
 • check firewall rules  
 • record decision in ledger  
 • execute action safely
+
+## Example Flow
+
+AI Agent
+   ↓
+Soulprint SDK
+   ↓
+Soulprint Execution Firewall
+   ↓
+Decision Ledger
+   ↓
+Action Execution
