@@ -20,8 +20,13 @@ def verify_ledger(db: Session = Depends(get_db)):
     ).all()
 
     previous_hash = ""
+    verified_count = 0
 
     for entry in entries:
+
+        # Skip legacy rows with missing hashes
+        if not entry.request_hash or not entry.response_hash or not entry.decision_hash:
+            continue
 
         expected_hash = compute_hash(
             previous_hash,
@@ -32,14 +37,16 @@ def verify_ledger(db: Session = Depends(get_db)):
         if entry.decision_hash != expected_hash:
             return {
                 "ledger_valid": False,
-                "error": "ledger tampered"
+                "error": "ledger tampered",
+                "verified_entries": verified_count
             }
 
         previous_hash = entry.decision_hash
+        verified_count += 1
 
     return {
         "ledger_valid": True,
-        "entries": len(entries)
+        "verified_entries": verified_count
     }
 @router.get("/ledger")
 def get_ledger(db: Session = Depends(get_db)):
