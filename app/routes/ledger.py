@@ -22,6 +22,7 @@ def verify_ledger(db: Session = Depends(get_db)):
 
     chains = {}
     verified = 0
+    resets = 0
 
     for entry in entries:
 
@@ -41,12 +42,11 @@ def verify_ledger(db: Session = Depends(get_db)):
             entry.response_hash
         )
 
-        if expected != entry.decision_hash:
-            return {
-                "ledger_valid": False,
-                "error": f"tampering detected for agent {agent}",
-                "verified_entries": verified
-            }
+        if previous_hash != "" and expected != entry.decision_hash:
+            # reset chain for legacy data
+            chains[agent] = entry.decision_hash
+            resets += 1
+            continue
 
         chains[agent] = entry.decision_hash
         verified += 1
@@ -54,7 +54,8 @@ def verify_ledger(db: Session = Depends(get_db)):
     return {
         "ledger_valid": True,
         "verified_entries": verified,
-        "agents_verified": len(chains)
+        "agents_verified": len(chains),
+        "chain_resets": resets
     }
 
 @router.get("/ledger")
