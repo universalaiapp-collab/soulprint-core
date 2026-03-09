@@ -41,3 +41,25 @@ def verify_ledger(db: Session = Depends(get_db)):
         "ledger_valid": True,
         "entries": len(entries)
     }
+@router.get("/ledger")
+def get_ledger(db: Session = Depends(get_db)):
+
+    entries = db.query(DecisionLedger).order_by(
+        DecisionLedger.created_at.desc()
+    ).limit(50).all()
+
+    results = []
+
+    for entry in entries:
+        results.append({
+            "agent_id": entry.agent_id,
+            "request_hash": entry.request_hash,
+            "response_hash": entry.response_hash,
+            "decision_hash": entry.decision_hash,
+            "created_at": entry.created_at
+        })
+
+    return {
+        "entries": results,
+        "count": len(results)
+    }
