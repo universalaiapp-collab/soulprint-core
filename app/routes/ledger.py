@@ -16,38 +16,47 @@ def compute_hash(previous_hash, request_hash, response_hash):
 def verify_ledger(db: Session = Depends(get_db)):
 
     entries = db.query(DecisionLedger).order_by(
+        DecisionLedger.agent_id,
         DecisionLedger.created_at
     ).all()
 
-    previous_hash = ""
-    verified_count = 0
+    chains = {}
+    verified = 0
 
     for entry in entries:
 
-        # Skip legacy rows with missing hashes
         if not entry.request_hash or not entry.response_hash or not entry.decision_hash:
             continue
 
-        expected_hash = compute_hash(
+        agent = entry.agent_id
+
+        if agent not in chains:
+            chains[agent] = ""
+
+        previous_hash = chains[agent]
+
+        expected = compute_hash(
             previous_hash,
             entry.request_hash,
             entry.response_hash
         )
 
-        if entry.decision_hash != expected_hash:
+        if expected != entry.decision_hash:
             return {
                 "ledger_valid": False,
-                "error": "ledger tampered",
-                "verified_entries": verified_count
+                "error": f"tampering detected for agent {agent}",
+                "verified_entries": verified
             }
 
-        previous_hash = entry.decision_hash
-        verified_count += 1
+        chains[agent] = entry.decision_hash
+        verified += 1
 
     return {
         "ledger_valid": True,
-        "verified_entries": verified_count
+        "verified_entries": verified,
+        "agents_verified": len(chains)
     }
+
 @router.get("/ledger")
 def get_ledger(db: Session = Depends(get_db)):
 
