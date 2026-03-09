@@ -47,9 +47,25 @@ try:
 except Exception as e:
     print("Escalation triggered:", e)
 
+print("\n====================================")
+print("TEST 4 — Saving Engine")
+print("====================================")
+
+payload = {"action_type": "costly_operation"}
+
+first = client.secure_action(payload)
+second = client.secure_action(payload)
+
+print("First execution:", first)
+print("Second execution:", second)
+
+if "DENY_ALREADY_COMPLETE" in str(second):
+    print("PASS: saving engine prevented duplicate execution")
+else:
+    print("FAIL: saving engine not triggered")
 
 print("\n============================")
-print("TEST 4 — Suspend Agent")
+print("TEST 5 — Suspend Agent")
 print("============================")
 
 suspend = requests.post(
@@ -66,7 +82,7 @@ except Exception as e:
 
 
 print("\n============================")
-print("TEST 5 — Ledger Verification")
+print("TEST 6 — Ledger Verification")
 print("============================")
 
 ledger = requests.get(f"{BASE_URL}/V1/ledger/verify")
