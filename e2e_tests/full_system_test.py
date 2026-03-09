@@ -53,7 +53,7 @@ print("TEST 4 — Suspend Agent")
 print("============================")
 
 suspend = requests.post(
-    f"{BASE_URL}/agents/suspend",
+    f"{BASE_URL}/V1/agents/suspend",
     json={"agent_id": AGENT_ID}
 )
 
@@ -69,7 +69,7 @@ print("\n============================")
 print("TEST 5 — Ledger Verification")
 print("============================")
 
-ledger = requests.get(f"{BASE_URL}/ledger/verify")
+ledger = requests.get(f"{BASE_URL}/V1/ledger/verify")
 
 print("Ledger status:", ledger.text)
 
